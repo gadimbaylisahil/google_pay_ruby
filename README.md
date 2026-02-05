@@ -1,6 +1,6 @@
 # GooglePayRuby
 
-A Ruby utility for securely decrypting Google Pay PaymentMethodTokens using the ECv2 protocol. This gem is a Ruby port of the [Basis Theory google-pay-js](https://github.com/Basis-Theory/google-pay-js) library.
+A Ruby utility for securely decrypting Google Pay PaymentMethodTokens using the ECv2 protocol. This gem is inspired from [Basis Theory google-pay-js](https://github.com/Basis-Theory/google-pay-js) library.
 
 ## Features
 
@@ -143,7 +143,7 @@ end
 
 ## Development
 
-After checking out the repo, run `bundle install` to install dependencies. Then, run `rake spec` to run the tests.
+After checking out the repo, run `bundle install` to install dependencies. Then, run `ruby test/test_decrypt.rb` to run the tests.
 
 ## Contributing
 
@@ -155,4 +155,4 @@ The gem is available as open source under the terms of the [MIT License](https:/
 
 ## Credits
 
-This Ruby implementation is based on the [Basis Theory google-pay-js](https://github.com/Basis-Theory/google-pay-js) library.
+This Ruby implementation is inspired from [Basis Theory google-pay-js](https://github.com/Basis-Theory/google-pay-js) library.
