@@ -5,8 +5,8 @@ require_relative "lib/google_pay_ruby/version"
 Gem::Specification.new do |spec|
   spec.name = "google_pay_ruby"
   spec.version = GooglePayRuby::VERSION
-  spec.authors = ["Better Payment"]
-  spec.email = ["dev@betterpayment.de"]
+  spec.authors = ["Sahil Gadimbayli"]
+  spec.email = ["contact@sahilgadimbayli.com"]
 
   spec.summary = "Ruby utility for decrypting Google Pay Tokens"
   spec.description = "A Ruby implementation for securely decrypting Google Pay PaymentMethodTokens using ECv2 protocol. Supports key rotation and multiple merchant configurations."
