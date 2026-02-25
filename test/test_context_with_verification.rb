@@ -8,13 +8,12 @@ require 'openssl'
 require 'base64'
 
 class TestContextWithVerification < Minitest::Test
-  def test_requires_recipient_id_when_signature_verification_enabled
-    error = assert_raises(ArgumentError) do
-      GooglePayRuby::GooglePaymentMethodTokenContext.new(
-        merchants: [{ private_key_pem: 'fake-key' }]
-      )
-    end
-    assert_match(/:recipient_id is required/, error.message)
+  def test_allows_nil_recipient_id_with_signature_verification_enabled
+    # recipient_id is optional — message signature check (step 4) is skipped when nil
+    context = GooglePayRuby::GooglePaymentMethodTokenContext.new(
+      merchants: [{ private_key_pem: 'fake-key' }]
+    )
+    assert_instance_of GooglePayRuby::GooglePaymentMethodTokenContext, context
   end
 
   def test_allows_nil_recipient_id_when_verification_disabled

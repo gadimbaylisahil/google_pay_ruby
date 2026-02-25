@@ -15,9 +15,9 @@ module GooglePayRuby
     GOOGLE_ROOT_SIGNING_KEYS_TEST_URL = 'https://payments.developers.google.com/paymentmethodtoken/test/keys.json'
 
     # @param root_signing_keys [Array<Hash>, nil] Pre-fetched root signing keys. If nil, they will be fetched from Google.
-    # @param recipient_id [String] The recipient ID, e.g. "merchant:12345" or "gateway:yourGatewayId"
+    # @param recipient_id [String, nil] The recipient ID, e.g. "merchant:12345" or "gateway:yourGatewayId". If nil, message signature verification (step 4) is skipped.
     # @param test [Boolean] Whether to use test keys URL (default: false)
-    def initialize(root_signing_keys: nil, recipient_id:, test: false)
+    def initialize(root_signing_keys: nil, recipient_id: nil, test: false)
       @root_signing_keys = root_signing_keys
       @recipient_id = recipient_id
       @test = test
@@ -65,7 +65,10 @@ module GooglePayRuby
       parsed_signed_key = JSON.parse(signed_key)
       intermediate_key_value = parsed_signed_key['keyValue']
 
-      verify_message_signature!(signed_message, signature, intermediate_key_value)
+      # Only verify message signature if recipient_id is provided
+      if @recipient_id && !@recipient_id.empty?
+        verify_message_signature!(signed_message, signature, intermediate_key_value)
+      end
     end
 
     private

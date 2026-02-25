@@ -25,9 +25,8 @@ module GooglePayRuby
         )
       end
 
-      if @verify_signature && (@recipient_id.nil? || @recipient_id.empty?)
-        raise ArgumentError, ':recipient_id is required when signature verification is enabled'
-      end
+      # recipient_id is optional — if not provided, message signature verification (step 4) is skipped
+      # while intermediate key verification (steps 1-3) still runs
 
       validate_merchant_configurations!
     end
