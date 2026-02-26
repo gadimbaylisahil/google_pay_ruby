@@ -34,7 +34,16 @@ module GooglePayRuby
       validate_merchant_configurations!
     end
 
+    # @param token [Hash, String] The Google Pay payment method token.
+    #   Can be a Hash (already parsed) or a JSON String (will be parsed internally).
+    #   When a String is provided, the raw JSON is preserved for signature verification
+    #   to handle unicode escapes (e.g. \u003d) that JSON.parse would decode.
     def decrypt(token)
+      if token.is_a?(String)
+        raw_token_json = token
+        token = JSON.parse(token)
+      end
+
       protocol_version = token['protocolVersion'] || token[:protocolVersion]
       unless protocol_version == 'ECv2'
         raise GooglePaymentDecryptionError.new(
@@ -49,7 +58,7 @@ module GooglePayRuby
           recipient_id: @recipient_id,
           test: @test
         )
-        verifier.verify!(token)
+        verifier.verify!(token, raw_token_json: raw_token_json)
       end
 
       # Step 5: Decrypt the payload

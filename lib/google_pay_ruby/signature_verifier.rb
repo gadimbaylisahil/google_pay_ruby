@@ -38,9 +38,13 @@ module GooglePayRuby
     # Runs all verification steps (1-4) on the given token.
     # Raises GooglePaymentDecryptionError on any verification failure.
     #
-    # @param token [Hash] The full Google Pay payment method token
+    # @param token [Hash] The full Google Pay payment method token (parsed)
+    # @param raw_token_json [String, nil] The original raw JSON string of the token.
+    #   When provided, signedKey and signedMessage are extracted from this raw string
+    #   to preserve the exact byte sequences that Google signed over (e.g. \u003d escapes).
+    #   JSON.parse decodes \u003d to '=' which changes the signed content and breaks verification.
     # @return [void]
-    def verify!(token)
+    def verify!(token, raw_token_json: nil)
       protocol_version = token['protocolVersion'] || token[:protocolVersion]
       unless protocol_version == PROTOCOL_VERSION
         raise GooglePaymentDecryptionError.new(
@@ -60,6 +64,16 @@ module GooglePayRuby
         raise GooglePaymentDecryptionError.new('Missing signedKey or signatures in intermediateSigningKey')
       end
 
+      # Extract original signedKey and signedMessage from raw JSON if available.
+      # This preserves the exact byte sequences (including unicode escapes like \u003d)
+      # that Google used when computing signatures.
+      if raw_token_json
+        raw_signed_key = extract_json_string_value(raw_token_json, 'signedKey')
+        raw_signed_message = extract_json_string_value(raw_token_json, 'signedMessage')
+        signed_key_json = raw_signed_key if raw_signed_key
+        signed_message_for_verify = raw_signed_message
+      end
+
       # Step 2: Verify intermediate signing key signature against non-expired root keys
       verify_intermediate_signing_key_signature!(signed_key_json, signatures)
 
@@ -67,7 +81,7 @@ module GooglePayRuby
       verify_intermediate_signing_key_expiration!(signed_key_json)
 
       # Step 4: Verify message signature using intermediate signing key
-      signed_message = token['signedMessage'] || token[:signedMessage]
+      signed_message = signed_message_for_verify || token['signedMessage'] || token[:signedMessage]
       signature = token['signature'] || token[:signature]
 
       unless signed_message && signature
@@ -246,6 +260,71 @@ module GooglePayRuby
     def build_ec_public_key(key_value_b64)
       key_der = Base64.strict_decode64(key_value_b64)
       OpenSSL::PKey::EC.new(key_der)
+    end
+
+    # Extract a JSON string value from raw JSON without decoding unicode escapes.
+    # This is critical because Google signs over the exact string content including
+    # any \uXXXX escapes. Ruby's JSON.parse decodes \u003d to '=' which changes
+    # the bytes and invalidates signatures.
+    #
+    # For a key like "signedKey", the value in the outer JSON is a JSON-encoded string.
+    # We need to extract and unescape the JSON string escapes (\" -> ", \\\\ -> \\)
+    # but preserve \uXXXX sequences as-is.
+    def extract_json_string_value(raw_json, key)
+      # Match "key":"<value>" where value may contain escaped characters
+      pattern = /"#{Regexp.escape(key)}"\s*:\s*"/
+      match = pattern.match(raw_json)
+      return nil unless match
+
+      start_pos = match.end(0)
+      # Walk through the string to find the unescaped closing quote
+      pos = start_pos
+      result = String.new
+      while pos < raw_json.length
+        char = raw_json[pos]
+        if char == '\\'
+          next_char = raw_json[pos + 1]
+          case next_char
+          when '"'
+            result << '"'
+            pos += 2
+          when '\\'
+            result << '\\'
+            pos += 2
+          when '/'
+            result << '/'
+            pos += 2
+          when 'n'
+            result << "\n"
+            pos += 2
+          when 'r'
+            result << "\r"
+            pos += 2
+          when 't'
+            result << "\t"
+            pos += 2
+          when 'b'
+            result << "\b"
+            pos += 2
+          when 'f'
+            result << "\f"
+            pos += 2
+          when 'u'
+            # Preserve \uXXXX as literal characters in the output
+            result << raw_json[pos..pos + 5]
+            pos += 6
+          else
+            result << char
+            pos += 1
+          end
+        elsif char == '"'
+          break
+        else
+          result << char
+          pos += 1
+        end
+      end
+      result
     end
   end
 end
