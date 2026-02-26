@@ -161,6 +161,122 @@ class TestContextWithVerification < Minitest::Test
     assert_equal 'test-merchant', result['gatewayMerchantId']
   end
 
+  def test_gateway_merchant_id_verification_passes_when_matching
+    merchant_key = OpenSSL::PKey::EC.generate('prime256v1')
+    merchant_pem = merchant_key.to_pem
+
+    plaintext = {
+      'messageExpiration' => future_ms.to_s,
+      'gatewayMerchantId' => 'my-merchant-123',
+      'paymentMethod' => 'CARD',
+      'paymentMethodDetails' => { 'pan' => '4111111111111111' }
+    }
+    signed_message_json = build_encrypted_signed_message(merchant_key, plaintext: plaintext)
+
+    token = {
+      'protocolVersion' => 'ECv2',
+      'signedMessage' => signed_message_json
+    }
+
+    context = GooglePayRuby::GooglePaymentMethodTokenContext.new(
+      merchants: [{ identifier: 'test', private_key_pem: merchant_pem }],
+      verify_signature: false,
+      verify_expiration: false,
+      gateway_merchant_id: 'my-merchant-123'
+    )
+
+    result = context.decrypt(token)
+    assert_equal 'my-merchant-123', result['gatewayMerchantId']
+  end
+
+  def test_gateway_merchant_id_verification_fails_when_mismatching
+    merchant_key = OpenSSL::PKey::EC.generate('prime256v1')
+    merchant_pem = merchant_key.to_pem
+
+    plaintext = {
+      'messageExpiration' => future_ms.to_s,
+      'gatewayMerchantId' => 'actual-merchant',
+      'paymentMethod' => 'CARD',
+      'paymentMethodDetails' => { 'pan' => '4111111111111111' }
+    }
+    signed_message_json = build_encrypted_signed_message(merchant_key, plaintext: plaintext)
+
+    token = {
+      'protocolVersion' => 'ECv2',
+      'signedMessage' => signed_message_json
+    }
+
+    context = GooglePayRuby::GooglePaymentMethodTokenContext.new(
+      merchants: [{ identifier: 'test', private_key_pem: merchant_pem }],
+      verify_signature: false,
+      verify_expiration: false,
+      gateway_merchant_id: 'expected-merchant'
+    )
+
+    error = assert_raises(GooglePayRuby::GooglePaymentDecryptionError) do
+      context.decrypt(token)
+    end
+    assert_match(/gatewayMerchantId mismatch/, error.message)
+    assert_match(/expected 'expected-merchant'/, error.message)
+    assert_match(/got 'actual-merchant'/, error.message)
+  end
+
+  def test_gateway_merchant_id_verification_fails_when_missing_in_payload
+    merchant_key = OpenSSL::PKey::EC.generate('prime256v1')
+    merchant_pem = merchant_key.to_pem
+
+    plaintext = {
+      'messageExpiration' => future_ms.to_s,
+      'paymentMethod' => 'CARD',
+      'paymentMethodDetails' => { 'pan' => '4111111111111111' }
+    }
+    signed_message_json = build_encrypted_signed_message(merchant_key, plaintext: plaintext)
+
+    token = {
+      'protocolVersion' => 'ECv2',
+      'signedMessage' => signed_message_json
+    }
+
+    context = GooglePayRuby::GooglePaymentMethodTokenContext.new(
+      merchants: [{ identifier: 'test', private_key_pem: merchant_pem }],
+      verify_signature: false,
+      verify_expiration: false,
+      gateway_merchant_id: 'some-merchant'
+    )
+
+    error = assert_raises(GooglePayRuby::GooglePaymentDecryptionError) do
+      context.decrypt(token)
+    end
+    assert_match(/missing gatewayMerchantId/, error.message)
+  end
+
+  def test_gateway_merchant_id_verification_skipped_when_not_provided
+    merchant_key = OpenSSL::PKey::EC.generate('prime256v1')
+    merchant_pem = merchant_key.to_pem
+
+    plaintext = {
+      'messageExpiration' => future_ms.to_s,
+      'paymentMethod' => 'CARD',
+      'paymentMethodDetails' => { 'pan' => '4111111111111111' }
+    }
+    signed_message_json = build_encrypted_signed_message(merchant_key, plaintext: plaintext)
+
+    token = {
+      'protocolVersion' => 'ECv2',
+      'signedMessage' => signed_message_json
+    }
+
+    # No gateway_merchant_id provided — verification should be skipped
+    context = GooglePayRuby::GooglePaymentMethodTokenContext.new(
+      merchants: [{ identifier: 'test', private_key_pem: merchant_pem }],
+      verify_signature: false,
+      verify_expiration: false
+    )
+
+    result = context.decrypt(token)
+    assert_equal 'CARD', result['paymentMethod']
+  end
+
   def test_full_flow_fails_with_wrong_recipient_id
     root_key = OpenSSL::PKey::EC.generate('prime256v1')
     root_keys = [{

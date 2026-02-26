@@ -13,13 +13,18 @@ module GooglePayRuby
     # @option options [Boolean] :test Whether to use Google's test keys URL (default: false)
     # @option options [Boolean] :verify_signature Whether to verify token signatures before decryption (default: true)
     # @option options [Boolean] :verify_expiration Whether to verify messageExpiration after decryption (default: true)
+    # @option options [String, nil] :gateway_merchant_id Expected gatewayMerchantId to verify in the decrypted payload.
+    #   When provided, the decrypted paymentMethodDetails.gatewayMerchantId must match this value.
+    # @option options [Boolean] :verify_merchant_id Whether to verify gatewayMerchantId after decryption (default: true if gateway_merchant_id is provided)
     def initialize(options)
       @merchants = options[:merchants] || []
       @recipient_id = options[:recipient_id]
       @root_signing_keys = options[:root_signing_keys]
+      @gateway_merchant_id = options[:gateway_merchant_id]
       @test = options.fetch(:test, false)
       @verify_signature = options.fetch(:verify_signature, true)
       @verify_expiration = options.fetch(:verify_expiration, true)
+      @verify_merchant_id = options.fetch(:verify_merchant_id, !@gateway_merchant_id.nil?)
 
       if @merchants.empty?
         raise GooglePaymentDecryptionError.new(
@@ -89,10 +94,33 @@ module GooglePayRuby
         verify_message_expiration!(decrypted_data)
       end
 
+      # Step 7: Verify gatewayMerchantId matches expected value
+      if @verify_merchant_id
+        verify_gateway_merchant_id!(decrypted_data)
+      end
+
       decrypted_data
     end
 
     private
+
+    # Step 7: Verify that the gatewayMerchantId in the decrypted payload matches the expected value.
+    # Per spec: "Verify that the gatewayMerchantId matches the ID of the merchant that gave you the payload."
+    def verify_gateway_merchant_id!(decrypted_data)
+      actual_merchant_id = decrypted_data['gatewayMerchantId']
+
+      unless actual_merchant_id
+        raise GooglePaymentDecryptionError.new(
+          'Decrypted message is missing gatewayMerchantId field'
+        )
+      end
+
+      unless actual_merchant_id == @gateway_merchant_id
+        raise GooglePaymentDecryptionError.new(
+          "gatewayMerchantId mismatch: expected '#{@gateway_merchant_id}', got '#{actual_merchant_id}'"
+        )
+      end
+    end
 
     # Step 6: Verify that the current time is less than the messageExpiration field
     def verify_message_expiration!(decrypted_data)
