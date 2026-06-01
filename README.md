@@ -186,7 +186,7 @@ ruby test/test_decrypt.rb
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/better-payment/google-pay-ruby.
+Bug reports and pull requests are welcome on GitHub at https://github.com/gadimbaylisahil/google_pay_ruby.
 
 ## License
 
